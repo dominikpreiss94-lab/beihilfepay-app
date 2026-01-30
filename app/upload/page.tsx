@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { FileText, Upload, X, Check, ArrowLeft, Sparkles, Brain } from 'lucide-react';
+import { FileText, Upload, X, Check, ArrowLeft, Brain, Menu } from 'lucide-react';
 import Tesseract from 'tesseract.js';
 
 export default function UploadPage() {
@@ -13,6 +13,7 @@ export default function UploadPage() {
   const [ocrProcessing, setOcrProcessing] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
   const [aiProcessing, setAiProcessing] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     leistungserbringer: '',
@@ -58,14 +59,13 @@ export default function UploadPage() {
     setOcrProgress(0);
 
     try {
-      // Schritt 1: Text mit Tesseract extrahieren
       const result = await Tesseract.recognize(
         file,
         'deu',
         {
           logger: (m) => {
             if (m.status === 'recognizing text') {
-              setOcrProgress(Math.round(m.progress * 50)); // Nur 50% für OCR
+              setOcrProgress(Math.round(m.progress * 50));
             }
           }
         }
@@ -77,7 +77,6 @@ export default function UploadPage() {
       setOcrProgress(50);
       setOcrProcessing(false);
       
-      // Schritt 2: Claude AI analysiert den Text
       setAiProcessing(true);
       await extractWithAI(extractedText);
 
@@ -93,7 +92,6 @@ export default function UploadPage() {
     try {
       setOcrProgress(60);
 
-      // Claude API Call
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -141,12 +139,10 @@ ${text}
       
       console.log('🤖 AI Response:', aiResponse);
       
-      // Parse JSON aus AI Response
       const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const extracted = JSON.parse(jsonMatch[0]);
         
-        // Felder füllen
         setFormData(prev => ({
           ...prev,
           leistungserbringer: extracted.leistungserbringer || prev.leistungserbringer,
@@ -160,7 +156,6 @@ ${text}
 
       setOcrProgress(100);
       
-      // Kurz 100% anzeigen
       setTimeout(() => {
         setAiProcessing(false);
         setOcrProgress(0);
@@ -168,7 +163,6 @@ ${text}
 
     } catch (error) {
       console.error('AI Extraction Error:', error);
-      // Fallback zu einfacher Regex-Extraktion
       extractDataFallback(text);
       setAiProcessing(false);
       setOcrProgress(0);
@@ -178,7 +172,6 @@ ${text}
   const extractDataFallback = (text: string) => {
     console.log('⚠️ Using fallback extraction');
     
-    // Einfache Regex als Fallback
     const betragMatch = text.match(/(\d+[.,]\d{2})\s*(?:EUR|€)/);
     if (betragMatch) {
       setFormData(prev => ({ ...prev, betrag: betragMatch[1].replace(',', '.') }));
@@ -245,74 +238,92 @@ ${text}
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      {/* Mobile-Optimized Header */}
+      <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
           <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-blue-600 rounded-lg flex items-center justify-center">
-                <FileText className="text-white" size={24} />
+            <Link href="/" className="flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-teal-500 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                <FileText className="text-white" size={20} />
               </div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-teal-600 to-blue-600 bg-clip-text text-transparent">
+              <h1 className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-teal-600 to-blue-600 bg-clip-text text-transparent">
                 BeihilfePay
               </h1>
-            </div>
-            <nav className="flex gap-6">
+            </Link>
+
+            <nav className="hidden md:flex gap-6">
               <Link href="/" className="text-slate-600 hover:text-teal-600 transition">Dashboard</Link>
               <Link href="/upload" className="text-teal-600 font-semibold">Upload</Link>
               <Link href="/rechnungen" className="text-slate-600 hover:text-teal-600 transition">Rechnungen</Link>
               <Link href="/einstellungen" className="text-slate-600 hover:text-teal-600 transition">Einstellungen</Link>
             </nav>
+
+            <button 
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 text-slate-600 hover:text-teal-600"
+            >
+              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
           </div>
+
+          {mobileMenuOpen && (
+            <nav className="md:hidden mt-4 pb-3 border-t border-slate-200 pt-3 space-y-2">
+              <Link href="/" className="block py-2 px-3 text-slate-600 hover:bg-slate-50 rounded-lg transition" onClick={() => setMobileMenuOpen(false)}>
+                Dashboard
+              </Link>
+              <Link href="/upload" className="block py-2 px-3 text-teal-600 font-semibold bg-teal-50 rounded-lg" onClick={() => setMobileMenuOpen(false)}>
+                Upload
+              </Link>
+              <Link href="/rechnungen" className="block py-2 px-3 text-slate-600 hover:bg-slate-50 rounded-lg transition" onClick={() => setMobileMenuOpen(false)}>
+                Rechnungen
+              </Link>
+              <Link href="/einstellungen" className="block py-2 px-3 text-slate-600 hover:bg-slate-50 rounded-lg transition" onClick={() => setMobileMenuOpen(false)}>
+                Einstellungen
+              </Link>
+            </nav>
+          )}
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Link href="/" className="inline-flex items-center gap-2 text-slate-600 hover:text-teal-600 transition mb-6">
-          <ArrowLeft size={20} />
-          Zurück zum Dashboard
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+        <Link href="/" className="inline-flex items-center gap-2 text-slate-600 hover:text-teal-600 transition mb-4 sm:mb-6">
+          <ArrowLeft size={18} />
+          <span className="text-sm sm:text-base">Zurück</span>
         </Link>
 
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-slate-900 mb-2">Neue Rechnung hochladen</h2>
-          <p className="text-slate-600 flex items-center gap-2">
-            <Brain size={20} className="text-purple-600" />
-            KI-powered: Foto machen → Automatisch ausgefüllt!
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">Neue Rechnung</h2>
+          <p className="text-sm sm:text-base text-slate-600 flex items-center gap-2">
+            <Brain size={18} className="text-purple-600 flex-shrink-0" />
+            KI liest automatisch aus!
           </p>
         </div>
 
         {/* OCR/AI Status Banner */}
         {(ocrProcessing || aiProcessing) && (
-          <div className="mb-6 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 rounded-xl shadow-lg p-6 text-white">
+          <div className="mb-6 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 rounded-xl shadow-lg p-4 sm:p-6 text-white">
             <div className="flex items-center gap-3 mb-3">
-              {ocrProcessing ? (
-                <>
-                  <Sparkles className="animate-pulse" size={24} />
-                  <h3 className="text-lg font-bold">Lese Text aus Rechnung...</h3>
-                </>
-              ) : (
-                <>
-                  <Brain className="animate-pulse" size={24} />
-                  <h3 className="text-lg font-bold">KI analysiert Daten...</h3>
-                </>
-              )}
+              <Brain className="animate-pulse flex-shrink-0" size={20} />
+              <h3 className="text-base sm:text-lg font-bold">
+                {ocrProcessing ? 'Lese Text...' : 'KI analysiert...'}
+              </h3>
             </div>
-            <div className="w-full bg-white/30 rounded-full h-3 overflow-hidden">
+            <div className="w-full bg-white/30 rounded-full h-2 sm:h-3 overflow-hidden">
               <div 
                 className="bg-white h-full transition-all duration-300 rounded-full"
                 style={{ width: `${ocrProgress}%` }}
               />
             </div>
-            <p className="text-sm mt-2 text-white/90">
-              {ocrProgress < 50 ? 'OCR läuft...' : ocrProgress < 100 ? 'KI extrahiert Daten...' : 'Fertig!'} ({ocrProgress}%)
+            <p className="text-xs sm:text-sm mt-2 text-white/90">
+              {ocrProgress}%
             </p>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Drag & Drop Upload */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+          {/* Upload Area */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6">
             <label className="block text-sm font-semibold text-slate-900 mb-3">
               Rechnung / Beleg
             </label>
@@ -322,12 +333,12 @@ ${text}
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
               onDrop={handleDrop}
-              className={`relative border-2 border-dashed rounded-lg p-8 text-center transition ${
+              className={`relative border-2 border-dashed rounded-lg p-6 sm:p-8 text-center transition ${
                 dragActive 
                   ? 'border-teal-500 bg-teal-50' 
                   : file 
                   ? 'border-teal-300 bg-teal-50'
-                  : 'border-slate-300 bg-slate-50 hover:border-teal-400'
+                  : 'border-slate-300 bg-slate-50'
               }`}
             >
               <input
@@ -336,53 +347,58 @@ ${text}
                 className="hidden"
                 onChange={handleFileChange}
                 accept=".pdf,.jpg,.jpeg,.png"
+                capture="environment"
               />
               
               {!file ? (
                 <>
-                  <Upload className="mx-auto mb-4 text-slate-400" size={48} />
-                  <p className="text-slate-700 font-semibold mb-2">
-                    📸 Foto machen oder Datei auswählen
+                  <Upload className="mx-auto mb-3 text-slate-400" size={40} />
+                  <p className="text-sm sm:text-base text-slate-700 font-semibold mb-2">
+                    📸 Foto machen
                   </p>
-                  <p className="text-sm text-slate-500 mb-4">
-                    PDF, JPG oder PNG - KI liest automatisch aus!
+                  <p className="text-xs sm:text-sm text-slate-500 mb-4">
+                    PDF, JPG oder PNG
                   </p>
                   <label 
                     htmlFor="file-upload"
-                    className="inline-block px-6 py-2 bg-teal-600 text-white rounded-lg font-semibold hover:bg-teal-700 cursor-pointer transition"
+                    className="inline-block px-5 sm:px-6 py-2 sm:py-3 bg-teal-600 text-white text-sm sm:text-base rounded-lg font-semibold hover:bg-teal-700 cursor-pointer transition active:scale-95"
                   >
                     Datei auswählen
                   </label>
                 </>
               ) : (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <FileText className="text-teal-600" size={32} />
-                    <div className="text-left">
-                      <p className="font-semibold text-slate-900">{file.name}</p>
-                      <p className="text-sm text-slate-600">{(file.size / 1024).toFixed(1)} KB</p>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <FileText className="text-teal-600 flex-shrink-0" size={28} />
+                    <div className="text-left min-w-0">
+                      <p className="font-semibold text-sm sm:text-base text-slate-900 truncate">
+                        {file.name}
+                      </p>
+                      <p className="text-xs sm:text-sm text-slate-600">
+                        {(file.size / 1024).toFixed(1)} KB
+                      </p>
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => setFile(null)}
-                    className="text-slate-400 hover:text-red-600 transition"
+                    className="text-slate-400 hover:text-red-600 transition p-2 flex-shrink-0"
                   >
-                    <X size={24} />
+                    <X size={20} />
                   </button>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Rechnungsinformationen */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-slate-900">Rechnungsinformationen</h3>
+          {/* Form Fields */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-base sm:text-lg font-bold text-slate-900">Rechnungsinfo</h3>
               {formData.betrag && (
-                <span className="text-xs font-semibold text-purple-600 bg-purple-100 px-3 py-1 rounded-full flex items-center gap-1">
-                  <Brain size={12} />
-                  KI ausgefüllt
+                <span className="text-xs font-semibold text-purple-600 bg-purple-100 px-2 py-1 rounded-full flex items-center gap-1">
+                  <Brain size={10} />
+                  KI
                 </span>
               )}
             </div>
@@ -396,12 +412,12 @@ ${text}
                 value={formData.leistungserbringer}
                 onChange={(e) => setFormData({...formData, leistungserbringer: e.target.value})}
                 placeholder="z.B. Dr. med. Schmidt"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 required
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-sm font-semibold text-slate-900 mb-2">
                   Betrag (€)
@@ -412,7 +428,7 @@ ${text}
                   value={formData.betrag}
                   onChange={(e) => setFormData({...formData, betrag: e.target.value})}
                   placeholder="0.00"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                   required
                 />
               </div>
@@ -425,7 +441,7 @@ ${text}
                   type="date"
                   value={formData.datum}
                   onChange={(e) => setFormData({...formData, datum: e.target.value})}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                   required
                 />
               </div>
@@ -438,7 +454,7 @@ ${text}
               <select
                 value={formData.art}
                 onChange={(e) => setFormData({...formData, art: e.target.value})}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               >
                 <option value="arztbesuch">Arztbesuch</option>
                 <option value="zahnarzt">Zahnarzt</option>
@@ -451,76 +467,79 @@ ${text}
           </div>
 
           {/* Weiterleitung */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <h3 className="text-lg font-bold text-slate-900 mb-4">Automatische Weiterleitung</h3>
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-3 sm:mb-4">
+              Weiterleitung
+            </h3>
             
             <div className="space-y-3">
-              <label className="flex items-center gap-3 cursor-pointer">
+              <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={formData.weiterleitungBeihilfe}
                   onChange={(e) => setFormData({...formData, weiterleitungBeihilfe: e.target.checked})}
-                  className="w-5 h-5 text-teal-600 rounded focus:ring-teal-500"
+                  className="w-5 h-5 text-teal-600 rounded focus:ring-teal-500 mt-0.5 flex-shrink-0"
                 />
-                <span className="text-slate-900">
-                  An Beihilfestelle NRW weiterleiten
+                <span className="text-sm sm:text-base text-slate-900">
+                  An Beihilfestelle NRW
                 </span>
               </label>
 
-              <label className="flex items-center gap-3 cursor-pointer">
+              <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={formData.weiterleitungPKV}
                   onChange={(e) => setFormData({...formData, weiterleitungPKV: e.target.checked})}
-                  className="w-5 h-5 text-teal-600 rounded focus:ring-teal-500"
+                  className="w-5 h-5 text-teal-600 rounded focus:ring-teal-500 mt-0.5 flex-shrink-0"
                 />
-                <span className="text-slate-900">
-                  An private Krankenversicherung weiterleiten
+                <span className="text-sm sm:text-base text-slate-900">
+                  An private Krankenversicherung
                 </span>
               </label>
             </div>
           </div>
 
           {/* Submit Button */}
-          <div className="flex gap-4">
-            <button
-              type="submit"
-              disabled={!file || uploading || uploadSuccess || ocrProcessing || aiProcessing}
-              className={`flex-1 py-3 px-6 rounded-lg font-bold text-white transition flex items-center justify-center gap-2 ${
-                uploadSuccess
-                  ? 'bg-teal-600'
-                  : uploading || ocrProcessing || aiProcessing
-                  ? 'bg-slate-400 cursor-not-allowed'
-                  : !file
-                  ? 'bg-slate-300 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-teal-600 to-blue-600 hover:shadow-lg'
-              }`}
-            >
-              {uploadSuccess ? (
-                <>
-                  <Check size={20} />
-                  Erfolgreich hochgeladen!
-                </>
-              ) : uploading ? (
-                <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  Wird hochgeladen...
-                </>
-              ) : ocrProcessing || aiProcessing ? (
-                <>
-                  <Brain className="animate-pulse" size={20} />
-                  KI analysiert...
-                </>
-              ) : (
-                <>
-                  <Upload size={20} />
-                  Rechnung hochladen
-                </>
-              )}
-            </button>
-          </div>
+          <button
+            type="submit"
+            disabled={!file || uploading || uploadSuccess || ocrProcessing || aiProcessing}
+            className={`w-full py-3 sm:py-4 px-6 rounded-lg font-bold text-white text-sm sm:text-base transition flex items-center justify-center gap-2 ${
+              uploadSuccess
+                ? 'bg-teal-600'
+                : uploading || ocrProcessing || aiProcessing
+                ? 'bg-slate-400 cursor-not-allowed'
+                : !file
+                ? 'bg-slate-300 cursor-not-allowed'
+                : 'bg-gradient-to-r from-teal-600 to-blue-600 hover:shadow-lg active:scale-95'
+            }`}
+          >
+            {uploadSuccess ? (
+              <>
+                <Check size={20} />
+                Erfolgreich!
+              </>
+            ) : uploading ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                Lädt...
+              </>
+            ) : ocrProcessing || aiProcessing ? (
+              <>
+                <Brain className="animate-pulse" size={20} />
+                Analysiert...
+              </>
+            ) : (
+              <>
+                <Upload size={20} />
+                Hochladen
+              </>
+            )}
+          </button>
         </form>
       </main>
+
+      {/* Mobile Bottom Padding */}
+      <div className="h-20"></div>
     </div>
   );
 }
