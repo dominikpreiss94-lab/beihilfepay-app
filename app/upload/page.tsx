@@ -63,7 +63,7 @@ export default function UploadPage() {
       setAiProgress(30);
 
       // Google Gemini API Call
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.NEXT_PUBLIC_GEMINI_API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${process.env.NEXT_PUBLIC_GEMINI_API_KEY}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -110,8 +110,22 @@ Falls du Informationen nicht finden kannst, lasse das Feld leer ("").`
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Gemini API Error:', errorData);
-        throw new Error('AI API Error');
+        console.error('❌ Gemini API Error Details:', errorData);
+        console.error('❌ Status:', response.status);
+        console.error('❌ API Key (first 10 chars):', process.env.NEXT_PUBLIC_GEMINI_API_KEY?.substring(0, 10));
+        
+        // User-friendly error message
+        if (response.status === 400) {
+          alert('API Fehler: Ungültiger Request. Bitte prüfe das Bild-Format.');
+        } else if (response.status === 403) {
+          alert('API Key Problem: Bitte prüfe ob der Key korrekt ist und aktiviert wurde.');
+        } else if (response.status === 429) {
+          alert('API Limit erreicht: Bitte warte einen Moment und versuche es erneut.');
+        } else {
+          alert(`API Fehler ${response.status}: Bitte versuche es später erneut.`);
+        }
+        
+        throw new Error(`AI API Error: ${response.status}`);
       }
 
       const data = await response.json();
