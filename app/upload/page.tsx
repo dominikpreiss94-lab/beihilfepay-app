@@ -40,7 +40,7 @@ export default function UploadPage() {
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const droppedFile = e.dataTransfer.files[0];
       setFile(droppedFile);
-      processWithGemini(droppedFile);
+      processWithClaude(droppedFile);
     }
   };
 
@@ -48,11 +48,11 @@ export default function UploadPage() {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
       setFile(selectedFile);
-      processWithGemini(selectedFile);
+      processWithClaude(selectedFile);
     }
   };
 
-  const processWithGemini = async (file: File) => {
+  const processWithClaude = async (file: File) => {
     setAiProcessing(true);
     setAiProgress(10);
 
@@ -62,16 +62,33 @@ export default function UploadPage() {
       
       setAiProgress(30);
 
-      // Google Gemini API Call
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=${process.env.NEXT_PUBLIC_GEMINI_API_KEY}`, {
+      // Determine media type
+      const mediaType = file.type === 'application/pdf' ? 'application/pdf' : file.type;
+
+      // Claude Vision API Call
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-api-key': process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY || '',
+          'anthropic-version': '2023-06-01'
         },
         body: JSON.stringify({
-          contents: [{
-            parts: [
+          model: 'claude-3-haiku-20240307',
+          max_tokens: 1024,
+          messages: [{
+            role: 'user',
+            content: [
               {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: mediaType,
+                  data: base64
+                }
+              },
+              {
+                type: 'text',
                 text: `Du bist ein Experte für deutsche Arzt- und Zahnarzt-Rechnungen.
 
 Analysiere das Bild dieser Rechnung und extrahiere folgende Informationen:
@@ -81,7 +98,7 @@ Analysiere das Bild dieser Rechnung und extrahiere folgende Informationen:
 3. Rechnungsdatum im Format YYYY-MM-DD
 4. Art der Behandlung (wähle aus: arztbesuch, zahnarzt, medikamente, krankenhaus, physiotherapie, sonstiges)
 
-Antworte NUR mit einem JSON-Objekt in diesem exakten Format (ohne zusätzlichen Text, keine Markdown-Formatierung):
+Antworte NUR mit einem JSON-Objekt in diesem exakten Format (ohne zusätzlichen Text):
 {
   "leistungserbringer": "Name",
   "betrag": "123.45",
@@ -90,19 +107,9 @@ Antworte NUR mit einem JSON-Objekt in diesem exakten Format (ohne zusätzlichen 
 }
 
 Falls du Informationen nicht finden kannst, lasse das Feld leer ("").`
-              },
-              {
-                inline_data: {
-                  mime_type: file.type,
-                  data: base64
-                }
               }
             ]
-          }],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 1024,
-          }
+          }]
         })
       });
 
@@ -110,17 +117,13 @@ Falls du Informationen nicht finden kannst, lasse das Feld leer ("").`
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('❌ Gemini API Error Details:', errorData);
+        console.error('❌ Claude API Error Details:', errorData);
         console.error('❌ Status:', response.status);
-        console.error('❌ API Key (first 10 chars):', process.env.NEXT_PUBLIC_GEMINI_API_KEY?.substring(0, 10));
         
-        // User-friendly error message
-        if (response.status === 400) {
-          alert('API Fehler: Ungültiger Request. Bitte prüfe das Bild-Format.');
-        } else if (response.status === 403) {
-          alert('API Key Problem: Bitte prüfe ob der Key korrekt ist und aktiviert wurde.');
+        if (response.status === 401) {
+          alert('API Key Problem: Bitte prüfe ob der Anthropic Key korrekt ist.');
         } else if (response.status === 429) {
-          alert('API Limit erreicht: Bitte warte einen Moment und versuche es erneut.');
+          alert('API Limit erreicht: Bitte warte einen Moment.');
         } else {
           alert(`API Fehler ${response.status}: Bitte versuche es später erneut.`);
         }
@@ -129,14 +132,12 @@ Falls du Informationen nicht finden kannst, lasse das Feld leer ("").`
       }
 
       const data = await response.json();
-      const aiResponse = data.candidates[0].content.parts[0].text;
+      const aiResponse = data.content[0].text;
       
-      console.log('🤖 Gemini Response:', aiResponse);
+      console.log('🤖 Claude Response:', aiResponse);
       
-      // Parse JSON aus AI Response (entferne mögliche Markdown-Formatierung)
-      const cleanResponse = aiResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      const jsonMatch = cleanResponse.match(/\{[\s\S]*\}/);
-      
+      // Parse JSON aus AI Response
+      const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const extracted = JSON.parse(jsonMatch[0]);
         
@@ -288,7 +289,7 @@ Falls du Informationen nicht finden kannst, lasse das Feld leer ("").`
           <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">Neue Rechnung</h2>
           <p className="text-sm sm:text-base text-slate-600 flex items-center gap-2">
             <Brain size={18} className="text-purple-600 flex-shrink-0" />
-            Google Gemini liest automatisch aus!
+            Claude AI liest automatisch aus!
           </p>
         </div>
 
@@ -308,7 +309,7 @@ Falls du Informationen nicht finden kannst, lasse das Feld leer ("").`
               />
             </div>
             <p className="text-xs sm:text-sm mt-2 text-white/90">
-              {aiProgress}% - Google Gemini arbeitet...
+              {aiProgress}% - Claude AI arbeitet...
             </p>
           </div>
         )}
@@ -427,7 +428,7 @@ Falls du Informationen nicht finden kannst, lasse das Feld leer ("").`
                 value={formData.leistungserbringer}
                 onChange={(e) => setFormData({...formData, leistungserbringer: e.target.value})}
                 placeholder="z.B. Dr. med. Schmidt"
-                className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 required
               />
             </div>
@@ -443,7 +444,7 @@ Falls du Informationen nicht finden kannst, lasse das Feld leer ("").`
                   value={formData.betrag}
                   onChange={(e) => setFormData({...formData, betrag: e.target.value})}
                   placeholder="0.00"
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                   required
                 />
               </div>
@@ -456,7 +457,7 @@ Falls du Informationen nicht finden kannst, lasse das Feld leer ("").`
                   type="date"
                   value={formData.datum}
                   onChange={(e) => setFormData({...formData, datum: e.target.value})}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                   required
                 />
               </div>
@@ -469,7 +470,7 @@ Falls du Informationen nicht finden kannst, lasse das Feld leer ("").`
               <select
                 value={formData.art}
                 onChange={(e) => setFormData({...formData, art: e.target.value})}
-                className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               >
                 <option value="arztbesuch">Arztbesuch</option>
                 <option value="zahnarzt">Zahnarzt</option>
@@ -495,7 +496,7 @@ Falls du Informationen nicht finden kannst, lasse das Feld leer ("").`
                   onChange={(e) => setFormData({...formData, weiterleitungBeihilfe: e.target.checked})}
                   className="w-5 h-5 text-teal-600 rounded focus:ring-teal-500 mt-0.5 flex-shrink-0"
                 />
-                <span className="text-sm sm:text-base text-slate-900">
+                <span className="text-base text-slate-900">
                   An Beihilfestelle NRW
                 </span>
               </label>
@@ -507,7 +508,7 @@ Falls du Informationen nicht finden kannst, lasse das Feld leer ("").`
                   onChange={(e) => setFormData({...formData, weiterleitungPKV: e.target.checked})}
                   className="w-5 h-5 text-teal-600 rounded focus:ring-teal-500 mt-0.5 flex-shrink-0"
                 />
-                <span className="text-sm sm:text-base text-slate-900">
+                <span className="text-base text-slate-900">
                   An private Krankenversicherung
                 </span>
               </label>
@@ -518,7 +519,7 @@ Falls du Informationen nicht finden kannst, lasse das Feld leer ("").`
           <button
             type="submit"
             disabled={!file || uploading || uploadSuccess || aiProcessing}
-            className={`w-full py-3 sm:py-4 px-6 rounded-lg font-bold text-white text-sm sm:text-base transition flex items-center justify-center gap-2 ${
+            className={`w-full py-3 sm:py-4 px-6 rounded-lg font-bold text-white text-base transition flex items-center justify-center gap-2 ${
               uploadSuccess
                 ? 'bg-teal-600'
                 : uploading || aiProcessing
